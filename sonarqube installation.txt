@@ -1,0 +1,65 @@
+Install Sonarqube on Ubuntu:
+---------------------------------------On Sonarqube Server - t2.medium 
+
+sudo -i
+apt update
+apt install openjdk-8-jdk unzip -y
+wget https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-5.6.7.zip
+unzip sonarqube-5.6.7.zip
+cd sonarqube-5.6.7
+cd bin
+cd linux-x86-64
+./sonar.sh start
+
+
+Open the Browser
+http://<publicip>:9000/
+Now sonarqube will be running on the port 9000 of your server
+Default login details
+username : admin
+password: admin
+
+Generate a Token in SonarQube server for authentication of your Jenkins server to Sonarqube server
+Administration -> Security -> Users -> For Admin user click on the Tokens button or icon
+-> Generate Token by adding Token name (admin) -> copy the Token and save it
+
+46948bfc2eec0538a85b18a41f88e76ca42bdea8
+Note: This token is genereated only once so save it for reference.
+
+On Jenkins Server ->
+
+Install Sonarqube Scanner Plugin
+Manage Jenkins -> Configure System -> setup sonarqube server -> 
+Add SonarQube ->
+Name: Any valid name of your choice
+Server URl -> http://publicip:9000
+Server Authentication Token -> Add -> Jenkins -> kind = Secret Text -> ID and Description of any choice
+
+Configure SonarScanner for the projects we would like to scan
+Manage Jenkins -> Global Tool Configuration -> SonarQube Scanner -> Add SonarQube Scanner -> 
+Name: Any name of your choice
+Select Install Automatically 
+Select the version - SonarQube Scanner4.0.0.1744
+
+
+Create a JOB and configure SonarQube Properties
+
+sonar.projectKey=gameoflife
+sonar.projectName=gameoflife
+sonar.projectVersion=1.0
+sonar.sources=.  
+sonar.binaries=gameoflife-web/target/classes/com/wakaleo/gameoflife/webtests/controllers
+sonar.junit.reportsPath=gameoflife-web/target/surefire-reports
+sonar.jacoco.reportPath=gameoflife-web/target/jacococ.exec
+
+#/var/lib/jenkins/workspace/sonarGOL
+#sonar.login=admin #No need if we are giving server authentication token
+#sonar.password=admin #No need if we are giving server authentication token
+
+sonar.projectKey=springpetclinic
+sonar.projectName=springpetclinic
+sonar.projectVersion=1.0
+sonar.sources=.
+sonar.binaries=target/classes/org/springframework/samples/petclinic/owner
+sonar.junit.reportsPath=target/surefire-reports
+sonar.jacoco.reportPath=target/jacococ.exec
