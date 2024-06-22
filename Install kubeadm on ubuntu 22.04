@@ -1,0 +1,195 @@
+step-1: Create three EC2 Instances with the given configuration
+Instance type- t2.medium
+
+Ubuntu Version- 22.04
+
+Create the keypair so you can connect to the instance using SSH.
+
+Create the new Security group and once the instances are initialized/created then, 
+make sure to add the Allow All traffic in inbound rule in the attached security group.
+
+step-2: Commands need to run on all Nodes(Master and Worker)
+
+$ sudo -i
+$ sudo apt-get update
+$ sudo swapoff -a
+$ sudo sed -i '/swap/d' /etc/fstab
+
+step-3:
+$ cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
+overlay
+br_netfilter
+EOF
+
+$ sudo modprobe overlay
+$ sudo modprobe br_netfilter
+
+# sysctl params required by setup, params persist across reboots
+$ cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-iptables  = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward                 = 1
+EOF
+
+# Apply sysctl params without reboot
+$ sudo sysctl --system
+
+step-4: 
+
+$ sudo apy-get update
+
+step-5: Install dependencies by running the command
+
+1. Update the apt package index and install packages needed to use the Kubernetes apt repository:
+
+$ sudo apt-get update
+$ sudo apt-get install -y apt-transport-https ca-certificates curl gpg
+
+2. Download the public signing key for the Kubernetes package repositories. 
+The same signing key is used for all repositories so you can disregard the version in the URL:
+
+# If the directory `/etc/apt/keyrings` does not exist, it should be created before the curl command, read the note below.
+# sudo mkdir -p -m 755 /etc/apt/keyrings
+$ curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+3. Add the appropriate Kubernetes apt repository.
+
+$ echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+4. Update the apt package index, install kubelet, kubeadm and kubectl, and pin their version:
+
+$ sudo apt-get update
+$ sudo apt-get install -y kubelet kubeadm kubectl
+$ sudo apt-mark hold kubelet kubeadm kubectl
+
+step-6: This is one of the important dependencies to setting up the Master and Worker nodes. Installing docker.
+
+$ sudo apt install docker.io -y
+
+step-7: Configuring containerd to ensure compatibility with Kubernetes
+
+$ sudo mkdir /etc/containerd
+$ sudo sh -c "containerd config default > /etc/containerd/config.toml"
+$ sudo sed -i 's/ SystemdCgroup = false/ SystemdCgroup = true/' /etc/containerd/config.toml
+
+step-8: Restart containerd, kubelet, and enable kubelet 
+so when we reboot our machine the nodes will restart it as well and connect properly.
+
+$ systemctl restart containerd.service
+$ systemctl restart kubelet.service
+$ systemctl enable kubelet.service
+
+Now, we have completed the installation of the things that are needed on both nodes (Master and Worker). 
+But in the next steps, we have to configure things only on the Master Node.
+-------------------------------------------
+Only on the Master Node
+-------------------------------------------
+Step-9: Initialize the Kubernetes cluster and it will pull some images such as kube-apiserver, kube-controller, and many other important components.
+
+$ kubeadm config images pull
+
+step-10: Now, initialize the Kubernetes cluster which will give you the token or command to connect with this Master node from the Worker node. 
+At the end of this command, you will get some commands that need to run and at the bottom, 
+you will get the kubeadm join command that will be run from the Worker Node to connect with the Master Node.
+lease keep the kubeadm join command somewhere in the notepad.
+
+$ kubeadm init
+
+token: kubeadm join 172.31.13.79:6443 --token 1geq3m.3j4a1cg8w08a52g1 \
+        --discovery-token-ca-cert-hash sha256:9c95711341ab9011a480a29d10579c65cfb65e2112d0e64261aac38d050fc264
+
+
+step-11: As you have to manage the cluster that’s why you need to create a .kube file copy it to the given directory and 
+change the ownership of the file.
+
+$ mkdir -p $HOME/.kube
+$ sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+$ sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+step-11: Verify the kubeconfig by kube-system which will list all the pods. 
+If you observe, there are starting twopods that are not ready status because the network plugin is not installed.
+
+$ kubectl get po -n kube-system
+
+step-13: Verify all the cluster component health statuses
+
+$ kubectl get --raw='/readyz?verbose'
+
+step-14: Check the cluster-info
+
+$ kubectl cluster-info
+
+step-15: To install the network plugin on the Master node
+
+$ kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml
+
+step-16: Now, If you run the below command, you will observe the two remaining pods are in ready status which means we are ready to bootstrap by our Workers Node or connect to the Master node through the Worker Node.
+
+$ kubectl get po -n kube-system
+
+step-17: Now, you have to run the command on Worker Node-1. If you remember, I told you to keep the command somewhere in Step 10.
+ Here you have to use your command because your token is different as well as mine.
+ 
+$ kubeadm join 172.31.13.79:6443 --token 1geq3m.3j4a1cg8w08a52g1 \
+        --discovery-token-ca-cert-hash sha256:9c95711341ab9011a480a29d10579c65cfb65e2112d0e64261aac38d050fc264 (worker node-1)
+
+step-18: Now, from here all the commands will be run on Master Node only.
+
+If you run the below command you will see that the Worker Nodes are present with their respective Private IPs and it is in Ready. status
+
+$ kubectl get nodes
+$ kubectl get pods
+
+Here, we have completed our Setup of Master and Worker Node. Now let’s try to deploy a simple nginx pod on both worker nodes.
+
+step-19: Run the command, which includes the deployment file to deploy nginx on both worker Node.
+
+$ cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  replicas: 5 
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80      
+EOF
+
+step-20: To expose your deployment on NodePort 32000 which means you can access your nginx application on port 32000 through your browser easily.
+
+$ cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  selector: 
+    app: nginx
+  type: NodePort  
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 32000
+EOF
+
+step-21: Now, check the pods by the below command and you can see that your pods are in running status.
+
+$ kubectl get pods
+$ kubectl get deployments
+$ kubectl get svc
+
+step-22: You can validate your deployment by copying the Public IP of your WorkerNode1 and adding a colon(:) with port(32000).
+
+$ <publicipadrress>:32000
+
