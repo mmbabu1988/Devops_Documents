@@ -1,0 +1,49 @@
+Install tomcat server on ubuntu:
+------------------------------------------------
+sudo -i
+apt update
+apt install openjdk-8-jdk unzip -y
+cd /opt
+wget https://mirrors.estointernet.in/apache/tomcat/tomcat-8/v8.5.69/bin/apache-tomcat-8.5.69.tar.gz
+wget https://dlcdn.apache.org/tomcat/tomcat-8/v8.5.100/bin/apache-tomcat-8.5.100.tar.gz
+tar -xvzf apache-tomcat-8.5.69.tar.gz
+cd apache-tomcat-8.5.69
+cd bin
+chmod +x *
+./startup.sh
+
+By Default your tomcat will be running on the port 8080
+It is time for us to change the default port from 8080 to 9090 (conf/server.xml----Remeber connector word)
+
+cd ..
+ls
+cd conf
+ls
+
+Make changes to tomcat-users.xml
+Create a username and password and attach roles of Manager-script, manager-gui to this user created
+
+ <role rolename="manager-script"/>
+  <role rolename="manager-gui"/>
+  <user username="tomcat" password="tomcat" roles="manager-script,manager-gui"/>
+
+
+cd ..
+ls
+cd webapps/manager/META-INF/
+vi context.xml
+Note: Comment 2 lines of valve
+<!- start
+
+-->
+
+cd ../../../bin/
+ls
+
+./shutdown.sh
+./startup.sh
+
+Jnekins - Deploy to container plugin
+
+------------------
+https://get.jenkins.io/war-stable/2.452.2/jenkins.war
