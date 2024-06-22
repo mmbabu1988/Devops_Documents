@@ -1,0 +1,125 @@
+First we launch th ec2 instance with ubuntu as os and instance type is t2.medium
+Go to security credentials and generate the access and secret access keys
+
+open the server and using command 
+aws configure
+access_key: AKIASNXG6SDJH6QUP2XQ
+secret_accesskey: 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
+region:
+
+https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html - aws cli
+
+
+
+step-1:
+Install AWS CLI on linux:
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+sudo apt install unzip
+unzip awscliv2.zip
+sudo ./aws/install
+aws --version
+
+open the server and using command 
+aws configure
+access_key: 
+secret_accesskey: 
+region:
+-------------------------------------------------------------------------------------------
+step-2: https://docs.aws.amazon.com/emr/latest/EMR-on-EKS-DevelopmentGuide/setting-up-eksctl.html
+Install Eksctl on ubuntu:
+apt-get update
+curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+mv /tmp/eksctl /usr/local/bin
+eksctl version
+----------------------------------------------------------------------------------------------------
+https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/
+step-3:Install kubectl on ubuntu:
+curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-archive-keyring.gpg
+echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+sudo apt update
+sudo apt install -y kubectl
+kubectl version --short --client
+------------------------------------------------------------------------
+Create IAM role with admin access:EC2
+
+-------------------------------------------------------------------
+step-4:
+eksctl create cluster --name demo-eks --region us-east-1 --nodegroup-name my-nodes --node-type t3.small --managed --nodes 2
+
+eksctl get cluster --name demo-eks --region us-east-1
+
+Once EKS cluster is created, kubeconfig file be created under /var/lib/jenkins/.kube/config
+cat /var/lib/jenkins/.kube/config
+
+
+eksctl delete cluster --name demo-eks --region us-east-1 
+
+---------------------------------------------------------------------------------------------------
+step-5:
+Install helm:
+-------------
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+
+chmod 700 get_helm.sh
+
+./get_helm.sh
+
+helm version --client
+
+step-6:
+------------------------------------------------------------------------------------------------------------------
+How to setup prometheus & grafana to monitoring kubernetes cluster:
+------------------------------------------------------------------------------------------------------------------
+step-1: we need to add the helm stable charts for our local client. Execute the below command
+helm repo add stable https://charts.helm.sh/stable
+step-2: Add the prometheus helm repo
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+step-3: search prometheus-community using below command
+helm search repo prometheus-community
+step-4: Create prometheus namespace using below command
+kubectl create namespace prometheus
+step-5: We need to install kube-prometheus-stack:(kube-prometheus-stack formerly known as prometheus operator) comes with a grafana deployment embedded
+helm install stable prometheus-community/kube-prometheus-stack -n prometheus
+step-6: Check the pods using below command (prometheus & grafana pods are running)
+kubectl get pods -n prometheus
+step-7: Check the service using below command
+kubectl get svc -n prometheus ( this confirms that prometheus & grafana have been installed successfully using helm)
+step-8:  In order to make promotheus and grafana available outside the cluster, use load balancer or NodePort
+Edit the prometheus service:
+kubectl edit svc stable-kube-prometheus-sta-prometheus -n prometheus
+
+replace cluster ip with loadbalancer
+
+Edit the grafana service:
+kubectl edit svc stable-grafana -n prometheus
+step-9: execute the below command 
+kubectl get svc -n prometheus
+
+grafana url: stable-grafana  LoadBalancer   10.100.24.87   ac598e4c6553d457ca11b35452fc6abe-1803597916.us-east-1.elb.amazonaws.com   80:30811/TCP                    16m
+
+grafana username: admin, password: prom-operator
+
+prometeus url: stable-kube-prometheus-sta-prometheus   LoadBalancer   10.100.58.79     a903ff63b53bb4023828b24252ab9696-1247210590.us-east-1.elb.amazonaws.com   9090:31936/TCP,8080:32230/TCP   16m
+----------------------------------------------------------------------------------------------------------------------------------
+How to Create kubernetes monitoring dashboard?
+for creating a dashboard to monitor the cluster:
+
+Click + button on left panel and select import
+Enter 12740 dashboard id under grafana.com dashboard
+Click Load
+Select promotheus as the end point under prometheus data sources drop down
+Click Import
+
+finally showing monitoring dashboard for all cluster nodes.
+
+----------------------------------------------------------
+How to create kubernetes cluster monitoring dashboard:
+Click + button on left panel and select import
+Enter 3119 dashboard id under grafana.com dashboard
+Click Load
+Select promotheus as the end point under prometheus data sources drop down
+Click Import
+
+finally showing monitoring dashboard for all cluster nodes.
+
+
